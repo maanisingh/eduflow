@@ -12,7 +12,7 @@ export default function AdminDashboard({ user, onLogout }) {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:8447/api/stats/dashboard', {
+      const response = await fetch(window.location.origin + '/api/stats/dashboard', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await response.json()

@@ -13,10 +13,10 @@ export default function TeacherDashboard({ user, onLogout }) {
     try {
       const token = localStorage.getItem('token')
       const [statsRes, classesRes] = await Promise.all([
-        fetch('http://localhost:8447/api/stats/dashboard', {
+        fetch(window.location.origin + '/api/stats/dashboard', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:8447/api/classes', {
+        fetch(window.location.origin + '/api/classes', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ])

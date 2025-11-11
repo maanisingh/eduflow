@@ -1,8 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  db:
+  eduflow_db:
     image: postgres:15-alpine
     container_name: eduflow_db
     restart: unless-stopped
@@ -11,61 +10,62 @@ services:
       POSTGRES_USER: ${DB_USER:-eduflow_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-eduflow_password}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - eduflow_postgres_data:/var/lib/postgresql/data
       - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     ports:
-      - "5432:5432"
+      - "5437:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-eduflow_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - eduflow_network
 
-  # Backend API
-  backend:
+  eduflow_backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: eduflow_backend
     restart: unless-stopped
     ports:
-      - "${PORT:-8447}:8447"
+      - "8447:8447"
     environment:
       PORT: 8447
       NODE_ENV: ${NODE_ENV:-production}
-      DB_HOST: db
+      DB_HOST: eduflow_db
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-eduflow}
       DB_USER: ${DB_USER:-eduflow_user}
-      DB_PASSWORD: ${DB_PASSWORD:-eduflow_password}
-      JWT_SECRET: ${JWT_SECRET:-change_this_secret_key_in_production}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     depends_on:
-      db:
+      eduflow_db:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+    networks:
+      - eduflow_network
 
-  # Frontend
-  frontend:
+  eduflow_frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}
     container_name: eduflow_frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3002:80"
     depends_on:
-      - backend
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8447}
+      - eduflow_backend
+    networks:
+      - eduflow_network
 
 volumes:
-  postgres_data:
+  eduflow_postgres_data:
     driver: local
 
 networks:
-  default:
-    name: eduflow_network
+  eduflow_network:
+    driver: bridge
