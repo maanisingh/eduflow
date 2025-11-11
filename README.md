@@ -36,14 +36,23 @@ A modern, full-stack school management system built with React, Node.js, Express
 
 ## Quick Start
 
-### Prerequisites
+### 🚂 Deploy to Railway (Fastest)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/maanisingh/eduflow)
+
+See [RAILWAY_DEPLOY.md](RAILWAY_DEPLOY.md) for detailed Railway deployment instructions.
+
+### 🐳 Local Docker Deployment
+
+#### Prerequisites
 - Docker and Docker Compose
-- Git (to clone the repository)
+- Git
 
-### Installation
+#### Installation
 
-1. **Clone or extract this folder**
+1. **Clone this repository**
    ```bash
+   git clone https://github.com/maanisingh/eduflow.git
    cd eduflow
    ```
 
