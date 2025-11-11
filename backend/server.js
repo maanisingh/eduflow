@@ -354,7 +354,7 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
 // ========== CRUD ENDPOINTS ==========
 
 // Get users by role
-app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.get('/api/users', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     const { role } = req.query;
     let queryText = 'SELECT id, email, first_name, last_name, role, grade_level, subject, is_active, created_at FROM users';
@@ -376,7 +376,7 @@ app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, r
 });
 
 // Create user (CRUD)
-app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.post('/api/users', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     const { email, password, firstName, lastName, role, gradeLevel, subject } = req.body;
 
@@ -404,7 +404,7 @@ app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, 
 });
 
 // Update user
-app.put('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.put('/api/users/:id', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const { email, password, firstName, lastName, gradeLevel, subject } = req.body;
@@ -435,7 +435,7 @@ app.put('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (re
 });
 
 // Delete user
-app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.delete('/api/users/:id', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -453,7 +453,7 @@ app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), async 
 });
 
 // Update class
-app.put('/api/classes/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.put('/api/classes/:id', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, gradeLevel, section, academicYear } = req.body;
@@ -475,7 +475,7 @@ app.put('/api/classes/:id', authenticateToken, authorizeRole(['admin']), async (
 });
 
 // Delete class
-app.delete('/api/classes/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.delete('/api/classes/:id', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -495,7 +495,7 @@ app.delete('/api/classes/:id', authenticateToken, authorizeRole(['admin']), asyn
 // ========== ANALYTICS ENDPOINTS ==========
 
 // Admin analytics
-app.get('/api/analytics/admin', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+app.get('/api/analytics/admin', authenticateToken, authorize(['admin']), async (req, res) => {
   try {
     // Performance distribution
     const perfDist = await query(`
