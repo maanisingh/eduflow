@@ -351,6 +351,243 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
   }
 });
 
+// ========== CRUD ENDPOINTS ==========
+
+// Get users by role
+app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { role } = req.query;
+    let queryText = 'SELECT id, email, first_name, last_name, role, grade_level, subject, is_active, created_at FROM users';
+    const params = [];
+
+    if (role) {
+      queryText += ' WHERE role = $1';
+      params.push(role);
+    }
+
+    queryText += ' ORDER BY created_at DESC';
+
+    const result = await query(queryText, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create user (CRUD)
+app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { email, password, firstName, lastName, role, gradeLevel, subject } = req.body;
+
+    if (!email || !password || !firstName || !lastName || !role) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const existingUser = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await query(
+      'INSERT INTO users (email, password_hash, role, first_name, last_name, grade_level, subject) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, email, first_name, last_name, role, grade_level, subject, is_active',
+      [email, hashedPassword, role, firstName, lastName, gradeLevel || null, subject || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update user
+app.put('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, password, firstName, lastName, gradeLevel, subject } = req.body;
+
+    let updateQuery = 'UPDATE users SET email = $1, first_name = $2, last_name = $3, grade_level = $4, subject = $5';
+    const params = [email, firstName, lastName, gradeLevel || null, subject || null];
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateQuery += ', password_hash = $6 WHERE id = $7 RETURNING id, email, first_name, last_name, role, grade_level, subject, is_active';
+      params.push(hashedPassword, id);
+    } else {
+      updateQuery += ' WHERE id = $6 RETURNING id, email, first_name, last_name, role, grade_level, subject, is_active';
+      params.push(id);
+    }
+
+    const result = await query(updateQuery, params);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete user
+app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update class
+app.put('/api/classes/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, gradeLevel, section, academicYear } = req.body;
+
+    const result = await query(
+      'UPDATE classes SET name = $1, grade_level = $2, section = $3, academic_year = $4 WHERE id = $5 RETURNING *',
+      [name, gradeLevel, section || null, academicYear, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update class error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete class
+app.delete('/api/classes/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query('DELETE FROM classes WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Class not found' });
+    }
+
+    res.json({ message: 'Class deleted successfully' });
+  } catch (error) {
+    console.error('Delete class error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========== ANALYTICS ENDPOINTS ==========
+
+// Admin analytics
+app.get('/api/analytics/admin', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  try {
+    // Performance distribution
+    const perfDist = await query(`
+      SELECT
+        CASE
+          WHEN (marks_obtained::float / marks_total * 100) >= 80 THEN 'Excellent'
+          WHEN (marks_obtained::float / marks_total * 100) >= 70 THEN 'Good'
+          WHEN (marks_obtained::float / marks_total * 100) >= 60 THEN 'Average'
+          WHEN (marks_obtained::float / marks_total * 100) >= 50 THEN 'Below Average'
+          ELSE 'Needs Improvement'
+        END as name,
+        COUNT(*) as value
+      FROM marks
+      GROUP BY name
+    `);
+
+    // Subject averages
+    const subjectAvg = await query(`
+      SELECT
+        s.name as subject,
+        ROUND(AVG(m.marks_obtained::float / m.marks_total * 100)::numeric, 2) as average
+      FROM marks m
+      JOIN subjects s ON m.subject_id = s.id
+      GROUP BY s.name
+      ORDER BY average DESC
+    `);
+
+    // Class performance trends
+    const classTrends = await query(`
+      SELECT
+        c.name as class,
+        ROUND(AVG(m.marks_obtained::float / m.marks_total * 100)::numeric, 2) as average
+      FROM marks m
+      JOIN classes c ON m.class_id = c.id
+      GROUP BY c.name
+      ORDER BY c.name
+    `);
+
+    // Attendance stats
+    const attendanceStats = await query(`
+      SELECT
+        c.name as class,
+        ROUND(AVG(CASE WHEN a.status = 'present' THEN 100 ELSE 0 END)::numeric, 2) as attendance_rate
+      FROM attendance a
+      JOIN classes c ON a.class_id = c.id
+      GROUP BY c.name
+      ORDER BY c.name
+    `);
+
+    // Top performing subject
+    const topSubject = subjectAvg.rows.length > 0 ? {
+      name: subjectAvg.rows[0].subject,
+      average: parseFloat(subjectAvg.rows[0].average)
+    } : null;
+
+    // Overall pass rate (assuming 50% is pass)
+    const passRate = await query(`
+      SELECT
+        ROUND(AVG(CASE WHEN (marks_obtained::float / marks_total * 100) >= 50 THEN 100 ELSE 0 END)::numeric, 2) as pass_rate
+      FROM marks
+    `);
+
+    // Average attendance
+    const avgAttendance = await query(`
+      SELECT
+        ROUND(AVG(CASE WHEN status = 'present' THEN 100 ELSE 0 END)::numeric, 2) as avg_attendance
+      FROM attendance
+    `);
+
+    // Students at risk (< 50%)
+    const atRisk = await query(`
+      SELECT COUNT(DISTINCT student_id) as count
+      FROM marks
+      WHERE (marks_obtained::float / marks_total * 100) < 50
+    `);
+
+    res.json({
+      performanceDistribution: perfDist.rows,
+      subjectAverages: subjectAvg.rows,
+      classTrends: classTrends.rows,
+      attendanceStats: attendanceStats.rows,
+      topSubject,
+      passRate: parseFloat(passRate.rows[0]?.pass_rate || 0),
+      avgAttendance: parseFloat(avgAttendance.rows[0]?.avg_attendance || 0),
+      studentsAtRisk: parseInt(atRisk.rows[0]?.count || 0)
+    });
+  } catch (error) {
+    console.error('Get admin analytics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
